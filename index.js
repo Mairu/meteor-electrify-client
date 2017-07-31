@@ -3,6 +3,8 @@
 const simpleRandom = require('simple-random');
 
 let SockJS;
+let versions;
+const clientApiVersion = '1.0';
 const callbacks = {};
 const startupCallbacks = {
   server: [],
@@ -12,9 +14,19 @@ const startupCallbacks = {
 if (Meteor.isServer) {
   SockJS = require('sockjs-client');
 
+  versions = {
+    electrify: process.env.ELECTRIFY_VERSION,
+    electrifyApi: process.env.ELECTRIFY_API_VERSION,
+    electron: process.env.ELECTRON_VERSION,
+    chrome: process.env.CHROME_VERSION,
+  };
+
   Meteor.methods({
-    'electrify.get.socket.port'() {
-      return process.env.SOCKET_PORT || null;
+    'electrify.get.initOptions'() {
+      return {
+        port: process.env.SOCKET_PORT || null,
+        versions,
+      };
     },
   });
 } else {
@@ -45,6 +57,12 @@ class ElectrifyClient {
     };
 
     const connect = (port) => {
+      if (settings.connectionWarning && this.versions.electrifyApi !== clientApiVersion) {
+        log(`Electrify API Version is not compatible with this client. 
+Electrify API Version: ${this.versions.electrifyApi}
+Client API Version: ${clientApiVersion}`);
+        return;
+      }
       if (!port) {
         if (settings.connectionWarning) {
           log([
@@ -84,10 +102,12 @@ class ElectrifyClient {
     };
 
     if (Meteor.isServer) {
+      this.versions = versions;
       connect(process.env.SOCKET_PORT);
     } else if (Meteor.isClient) {
-      Meteor.call('electrify.get.socket.port', [], (error, port) => {
-        connect(port);
+      Meteor.call('electrify.get.initOptions', [], (error, initOptions) => {
+        this.versions = initOptions.versions;
+        connect(initOptions.port);
       });
     }
   }

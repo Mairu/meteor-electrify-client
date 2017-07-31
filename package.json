@@ -1,14 +1,20 @@
 {
   "name": "meteor-electrify-client",
-  "version": "1.0.0-alpha.0",
+  "version": "1.0.0",
   "description": "Client for an electrified meteor application",
   "author": "Sebastian Große",
   "license": "MIT",
   "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "LICENCE",
+    "README.md"
+  ],
   "scripts": {
     "build": "rm -rf dist/** && babel index.js --out-dir dist",
     "lint": "eslint index.js || true",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "npm run build"
   },
   "repository": {
     "type": "git",

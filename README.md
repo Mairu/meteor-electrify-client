@@ -1,6 +1,7 @@
 # Electrify Meteor Client
 
-This is the client for communication with an the Electron part of an electrified app.
+This is the client for communication with an the Electron part of an electrified Meteor app,
+that was created using the meteor-electrify package.
 
 ## Integrating the client
 
@@ -57,5 +58,5 @@ if (Electrify.connected) {
 
 The MIT License (MIT)
 
-Copyright (c) 2017 Sebastian Große
+Copyright (c) 2017 Sebastian Große  
 Electrify originally created by Copyright (c) 2015 Anderson Arboleya
