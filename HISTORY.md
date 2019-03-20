@@ -1,3 +1,10 @@
+2.0.0 / 2019-03-20
+==================
+  * **Breaking Change**: ElectrifyClient constructor now takes Meteor and Random or a randomizing function as mandatory arguments
+  * remove simpleRandom dependency (randomizer as constructor argument)
+  * don't rely on global underscore package of meteor application
+  * *dev*: update babel + eslint
+
 1.0.0 / 2017-07-31
 ==================
   * extract electrify "meteor client" into own npm package

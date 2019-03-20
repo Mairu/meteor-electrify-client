@@ -1,6 +1,9 @@
 # Electrify Meteor Client
 
-This is the client for communication with an the Electron part of an electrified Meteor app,
+[![npm](https://img.shields.io/npm/v/meteor-electrify-client.svg?logo=npm)](https://www.npmjs.com/package/meteor-electrify-client)
+[![dependencies](https://img.shields.io/david/Mairu/meteor-electrify-client.svg)](https://david-dm.org/Mairu/meteor-electrify-client)
+
+This is the client for communication with the Electron part of an electrified Meteor app,
 that was created using the meteor-electrify package.
 
 ## Integrating the client
@@ -8,14 +11,16 @@ that was created using the meteor-electrify package.
 At a startup script (for client and/or server) in your meteor application run the following code.
 
 ```javascript
+import { Meteor } from 'meteor/meteor';
+import { Random } from 'meteor/random';
 import { ElectrifyClient } from 'meteor-electrify-client';
 
-export const Electrify = new ElectrifyClient();
+export const Electrify = new ElectrifyClient(Meteor, Random);
 
 // now you can use the Electrify api methods
 ```
 
-The ElectrifyClient constructor can consume an optional options object with:
+The ElectrifyClient constructor can consume an optional options object as 3rd argument with:
  * **connectionWarning (boolean)**
    
    Show a warning if the meteor application is run without electrify/Electron.
@@ -58,5 +63,5 @@ if (Electrify.connected) {
 
 The MIT License (MIT)
 
-Copyright (c) 2017 Sebastian Große  
+Copyright (c) 2017-2019 Sebastian Große
 Electrify originally created by Copyright (c) 2015 Anderson Arboleya

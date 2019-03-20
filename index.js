@@ -1,19 +1,10 @@
-/* global Meteor */
-/* global _ */
-const simpleRandom = require('simple-random');
-
-let SockJS;
+let initialized = false;
 let versions;
 const clientApiVersion = '1.0';
 const callbacks = {};
-const startupCallbacks = {
-  server: [],
-  client: [],
-};
+let startupCallbacks = [];
 
-if (Meteor.isServer) {
-  SockJS = require('sockjs-client');
-
+const initOnServer = (Meteor, callback) => {
   versions = {
     electrify: process.env.ELECTRIFY_VERSION,
     electrifyApi: process.env.ELECTRIFY_API_VERSION,
@@ -22,16 +13,20 @@ if (Meteor.isServer) {
   };
 
   Meteor.methods({
-    'electrify.get.initOptions'() {
-      return {
-        port: process.env.SOCKET_PORT || null,
-        versions,
-      };
-    },
+    'electrify.get.initOptions': () => ({
+      port: process.env.SOCKET_PORT || null,
+      versions,
+    }),
   });
-} else {
-  SockJS = require('sockjs-client/dist/sockjs.js');
-}
+
+  const SockJS = require('sockjs-client');
+  callback(SockJS);
+};
+
+const initOnClient = (callback) => {
+  const SockJS = require('sockjs-client/dist/sockjs.js');
+  callback(SockJS);
+};
 
 let settings;
 
@@ -40,9 +35,27 @@ const defaultOptions = {
 };
 
 class ElectrifyClient {
-  constructor(options) {
-    settings = _.extend({}, defaultOptions, options);
-    this.where = Meteor.isServer ? 'server' : 'client';
+  constructor(Meteor, handshakeIdGenerator, options) {
+    if (initialized) {
+      throw new Error('ElectrifyClient can only be instantiated once!');
+    }
+    initialized = true;
+
+    if (typeof Meteor !== 'object' || typeof Meteor.isServer !== 'boolean') {
+      throw new Error('First argument of ElectrifyClient must be the Meteor object');
+    }
+    if (typeof handshakeIdGenerator === 'function') {
+      this.handshakeIdGenerator = handshakeIdGenerator;
+    } else if (typeof handshakeIdGenerator === 'object' && typeof handshakeIdGenerator.id === 'function') {
+      this.handshakeIdGenerator = () => handshakeIdGenerator.id();
+    } else {
+      throw new Error('Second argument of ElectrifyClient must be the Meteor Random object or function that generates a random string');
+    }
+    if (options !== undefined && typeof options !== 'object') {
+      throw new Error('Third argument of ElectrifyClient if provided must be an object with options');
+    }
+
+    settings = { ...defaultOptions, ...options };
     this.connected = false;
 
     const log = (...args) => {
@@ -50,26 +63,26 @@ class ElectrifyClient {
     };
 
     const fireReadyCallbacks = () => {
-      startupCallbacks[this.where].forEach(ready => {
+      startupCallbacks.forEach((ready) => {
         ready();
       });
-      startupCallbacks[this.where] = [];
+      startupCallbacks = [];
     };
 
-    const connect = (port) => {
-      if (settings.connectionWarning && this.versions.electrifyApi !== clientApiVersion) {
-        log(`Electrify API Version is not compatible with this client. 
-Electrify API Version: ${this.versions.electrifyApi}
-Client API Version: ${clientApiVersion}`);
-        return;
-      }
+    const connect = (SockJS, port) => {
       if (!port) {
         if (settings.connectionWarning) {
           log([
-            'cannot initialize connection. Did you `npm install -g electrify`?',
+            'cannot initialize connection. Did you `npm install -g meteor-electrify`?',
             'install it and try running your meteor app with `electrify` npm command',
           ].join('\n'));
         }
+        return;
+      }
+      if (this.versions.electrifyApi !== clientApiVersion) {
+        log(`Electrify API Version is not compatible with this client. 
+Electrify API Version: ${this.versions.electrifyApi}
+Client API Version: ${clientApiVersion}`);
         return;
       }
 
@@ -81,18 +94,16 @@ Client API Version: ${clientApiVersion}`);
         this.connected = true;
       };
 
-      this.socket.onmessage = e => {
+      this.socket.onmessage = (e) => {
         const packet = JSON.parse(e.data);
         const done = callbacks[packet.handshake];
 
         if (done) {
           callbacks[packet.handshake] = null;
           delete callbacks[packet.handshake];
-          done.apply(null, [].concat(packet.error, packet.args));
+          done(packet.error, packet.args);
         } else {
-          done.apply(null, [
-            `No callback defined for handshake \`${packet.handshake}\``,
-          ]);
+          done(`No callback defined for handshake \`${packet.handshake}\``);
         }
       };
 
@@ -102,12 +113,16 @@ Client API Version: ${clientApiVersion}`);
     };
 
     if (Meteor.isServer) {
-      this.versions = versions;
-      connect(process.env.SOCKET_PORT);
+      initOnServer(Meteor, (SockJS) => {
+        this.versions = versions;
+        connect(SockJS, process.env.SOCKET_PORT);
+      });
     } else if (Meteor.isClient) {
-      Meteor.call('electrify.get.initOptions', [], (error, initOptions) => {
-        this.versions = initOptions.versions;
-        connect(initOptions.port);
+      initOnClient((SockJS) => {
+        Meteor.call('electrify.get.initOptions', [], (error, initOptions) => {
+          this.versions = initOptions.versions;
+          connect(SockJS, initOptions.port);
+        });
       });
     }
   }
@@ -120,12 +135,12 @@ Client API Version: ${clientApiVersion}`);
       }
       ready();
     } else {
-      startupCallbacks[this.where].push(ready);
+      startupCallbacks.push(ready);
     }
   }
 
   call(method, args, done) {
-    if (!(done instanceof Function)) {
+    if (typeof done !== 'function') {
       throw new Error('Third argument to `Electrify.call()` must be a function');
     }
 
@@ -139,8 +154,7 @@ Client API Version: ${clientApiVersion}`);
     }
 
     const packet = {
-      // TODO: Use 'meteor/random' if possible in the future
-      handshake: simpleRandom({ length: 24 }),
+      handshake: this.handshakeIdGenerator(),
       method,
       args,
     };
